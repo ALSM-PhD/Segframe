@@ -2,6 +2,10 @@
 #-*- coding: utf-8
 #Author: André L. S. Meirelles (andre.meirelles@aluno.unb.br)
 
+#Filter warnings
+import warnings
+warnings.filterwarnings('ignore')
+    
 import keras
 from keras.utils.data_utils import Sequence
 from keras.preprocessing.image import Iterator,ImageDataGenerator

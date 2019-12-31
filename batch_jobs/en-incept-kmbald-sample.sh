@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p GPU-AI
-#SBATCH -t 20:00:00
+#SBATCH -t 30:00:00
 #SBATCH --gres=gpu:volta16:2
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=alsmeirelles@gmail.com
@@ -8,7 +8,7 @@
 #echo commands to stdout
 #set -x
 
-DIRID="AL-140"
+DIRID="KM-49"
 export PYTHONPATH=$HOME/.local/lib/python3.6/site-packages:/pylon5/ac3uump/alsm/lib64/python3.6/site-packages:$PYTHONPATH
 
 if [ ! -d $LOCAL/test ]
@@ -33,7 +33,7 @@ module load cuda/9.0
 echo '[START] training'
 date +"%D %T"
 
-time python3 main.py -i -v --al -predst $LOCAL/test/lym_cnn_training_data -split 0.85 0.05 0.10 -net Inception -data CellRep -init_train 500 -ac_steps 25 -dropout_steps 20 -ac_function random_sample -acquire 100 -d -e 50 -b 60 -tdim 240 240 -out logs/ -cpu 9 -gpu 2 -tn -sv -nsw -wpath results/$DIRID -model_dir results/$DIRID -logdir results/$DIRID -cache results/$DIRID -sample 10000
+time python3 main.py -i -v --al -strategy EnsembleTrainer -predst $LOCAL/test/lym_cnn_training_data -split 0.85 0.05 0.10 -net Inception -data CellRep -init_train 500 -ac_steps 28  -emodels 4 -ac_function km_uncert -un_function bayesian_bald -acquire 100 -d -e 50 -b 60 -tdim 240 240 -clusters 20 -out logs/ -cpu 9 -gpu 2 -tn -sv -nsw -wpath results/$DIRID -model_dir results/$DIRID -logdir results/$DIRID -cache results/$DIRID -pca 50 -sample 5000
 
 echo '[FINAL] done training'
 

@@ -183,7 +183,7 @@ class Predictor(object):
         if self._ensemble:
             #Weights should be loaded during ensemble build
             if hasattr(model,'build_ensemble'):
-                pred_model = model.build_ensemble(training=False)
+                pred_model = model.build_ensemble(training=False,npfile=True)
             else:
                 if self._config.info:
                     print('[Predictor] Model not prepared to build ensembles, implement or choose other model')

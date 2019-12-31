@@ -4,8 +4,20 @@
 import importlib
 import os
 
+#Filter warnings
+import warnings
+warnings.filterwarnings('ignore')
+    
 import numpy as np
+
+#Preparing migration to TF 2.0
 import tensorflow as tf
+if tf.__version__ >= '1.14.0':
+    tf = tf.compat.v1
+    from tensorflow.python.util import deprecation
+    deprecation._PRINT_DEPRECATION_WARNINGS = False
+    tf.logging.set_verbosity(tf.logging.ERROR)
+    #tf.disable_v2_behavior()
 
 #Network
 from keras.models import Sequential,Model
@@ -57,7 +69,29 @@ class Inception(GenericModel):
         Returns path to model cache
         """
         return self.cache_m.fileLocation(self._mgpu_weightsCache)
+    
+    def get_npweights_cache(self,add_ext=False):
+        """
+        Returns path to model cache.
 
+        @param add_ext <boolean>: add numpy file extension to file name.
+        """
+        if add_ext:
+            return "{}.npy".format(self.cache_m.fileLocation(self._weightsCache).split('.')[0])
+        else:
+            return self.cache_m.fileLocation(self._weightsCache).split('.')[0]
+
+    def get_npmgpu_weights_cache(self,add_ext=False):
+        """
+        Returns path to model cache
+
+        @param add_ext <boolean>: add numpy file extension to file name.
+        """
+        if add_ext:
+            return "{}.npy".format(self.cache_m.fileLocation(self._mgpu_weightsCache).split('.')[0])
+        else:
+            return self.cache_m.fileLocation(self._mgpu_weightsCache).split('.')[0]
+    
     def register_ensemble(self,m):
         self._model_n = m
         self._weightsCache = "{0}-EM{1}-weights.h5".format(self.name,m)
@@ -112,28 +146,42 @@ class Inception(GenericModel):
         Weights are loaded here because of the way ensembles should be built.
 
         Default build: avareges the output of the corresponding softmaxes
+
+        @param npfile <boolean>: loads weights from numpy files
         """
+
+        if 'npfile' in kwargs:
+            npfile = kwargs['npfile']
+        else:
+            npfile = False
 
         s_models = []
         p_models = []
-        for m in self._config.emodels:
+        for m in range(self._config.emodels):
             self.register_ensemble(m)
             single,parallel = self._build(**kwargs)
             
-            if parallel and os.path.isfile(model.get_mgpu_weights_cache()):
-                parallel.load_weights(model.get_mgpu_weights_cache(),by_name=True)
-                if self._config.info:
-                    print("[Inception] loaded ensemble weights: {}".format(model.get_mgpu_weights_cache()))
+            if not parallel is None:
+                if npfile and hasattr(model,'get_npmgpu_weights_cache'):
+                    parallel.set_weights(np.load(model.get_npmgpu_weights_cache(),allow_pickle=True))
+                    if self._config.info:
+                        print("[Inception] loaded ensemble weights: {}".format(model.get_npmgpu_weights_cache()))
+                elif os.path.isfile(model.get_mgpu_weights_cache()):                    
+                    parallel.load_weights(model.get_mgpu_weights_cache(),by_name=True)
+                    if self._config.info:
+                        print("[Inception] loaded ensemble weights: {}".format(model.get_mgpu_weights_cache()))
             else:
                 parallel = None
 
-            if os.path.isfile(model.get_weights_cache()):
-                single.load_weights(model.get_weights_cache(),by_name=True)
+            if npfile and hasattr(model,'get_npweights_cache'):
+                single.set_weights(np.load(model.get_weights_cache(),allow_pickle=True))
                 if self._config.info:
-                    print("[Inception] loaded ensemble weights: {}".format(model.get_weights_cache()))
+                    print("[Inception] loaded ensemble weights: {}".format(model.get_npweights_cache()))
+            elif os.path.isfile(model.get_weights_cache()):
+                single.load_weights(model.get_weights_cache(),by_name=True)
             else:
                 if self._config.info:
-                    print("[Inception] Could not load ensemble weights (model {}): {}".format(model.get_weights_cache()))
+                    print("[Inception] Could not load ensemble weights (model {})".format(m))
                 single = None
             s_models.append(single)
             p_models.append(parallel)

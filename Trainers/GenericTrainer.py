@@ -7,6 +7,10 @@ import re
 import numpy as np
 import threading
 
+#Filter warnings
+import warnings
+warnings.filterwarnings('ignore')
+    
 from Datasources.CellRep import CellRep
 from Utils import SaveLRCallback,CalculateF1Score,EnsembleModelCallback
 from Utils import Exitcodes,CacheManager
@@ -18,7 +22,14 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau,LearningRateScheduler
 from keras.utils import to_categorical
 
+#Preparing migration to TF 2.0
 import tensorflow as tf
+if tf.__version__ >= '1.14.0':
+    tf = tf.compat.v1
+    from tensorflow.python.util import deprecation
+    deprecation._PRINT_DEPRECATION_WARNINGS = False
+    tf.logging.set_verbosity(tf.logging.ERROR)
+    #tf.disable_v2_behavior()
 
 def run_training(config,locations=None):
     """
@@ -184,6 +195,8 @@ class Trainer(object):
         @param verbose <int>: set verbosity level for training process. If not specified, use default
         @param summary <boolean>: print model summary
         @param clear_sess <boolean>: clears session and frees GPU memory
+        @param allocated_gpus <int>: currently not used
+        @param save_numpy <boolean>: save weights in numpy format instead of HDF5
         """
         rcomp = re.compile(self._rex)
 
@@ -211,6 +224,11 @@ class Trainer(object):
             allocated_gpus = kwargs['allocated_gpus']
         else:
             allocated_gpus = None
+            
+        if 'save_numpy' in kwargs:
+            save_numpy = kwargs['save_numpy']
+        else:
+            save_numpy = False
             
         # session setup
         if set_session:
@@ -327,19 +345,26 @@ class Trainer(object):
             print("Done training model: {0}".format(hex(id(training_model))))
 
 
-        sw_thread = threading.Thread(target=self._save_weights,name='save_weights',args=(model,single,parallel,clear_sess))
+        sw_thread = threading.Thread(target=self._save_weights,name='save_weights',args=(model,single,parallel,clear_sess,save_numpy))
         sw_thread.start()
         return sw_thread
         
-    def _save_weights(self,model,single,parallel,clear_sess):
+    def _save_weights(self,model,single,parallel,clear_sess,save_numpy):
         #Save weights for single tower model and for multigpu model (if defined)
         cache_m = CacheManager()
         if self._config.info:
             print("Saving weights, this could take a while...")
-        single.save_weights(model.get_weights_cache())
+        if save_numpy and hasattr(model,'get_npweights_cache'):
+            np.save(model.get_npweights_cache(),single.get_weights())
+        else:
+            single.save_weights(model.get_weights_cache())
+            single.save(model.get_model_cache())
+            
         if not parallel is None and not model.get_mgpu_weights_cache() is None:
-            parallel.save_weights(model.get_mgpu_weights_cache())
-        single.save(model.get_model_cache())
+            if save_numpy and hasattr(model,'get_npmgpu_weights_cache'):
+                np.save(model.get_npmgpu_weights_cache(),parallel.get_weights())
+            else:
+                parallel.save_weights(model.get_mgpu_weights_cache())
         cache_m.dump(tuple(self._config.split),'split_ratio.pik')
 
         if clear_sess:

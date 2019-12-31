@@ -5,6 +5,11 @@ import os,sys
 import numpy as np
 import importlib
 import random
+
+#Filter warnings
+import warnings
+warnings.filterwarnings('ignore')
+    
 from keras.preprocessing.image import ImageDataGenerator
 
 #Local

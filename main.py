@@ -8,6 +8,10 @@ import importlib
 import multiprocessing as mp
 from multiprocessing import Process
 
+#Filter warnings
+import warnings
+warnings.filterwarnings('ignore')
+    
 #Project imports
 from Preprocessing import Preprocess
 from Utils import Exitcodes,CacheManager
